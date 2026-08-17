@@ -425,7 +425,7 @@ export default function App() {
         {/* ABOUT US TAB */}
         {activeTab === 'about' && (
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-6 text-center">
-            <h2 className="text-2xl font-bold text-white">Host</h2>
+            <h2 className="text-2xl font-bold text-white">Owner</h2>
             
             <img 
               src="/profile.jpg" 
@@ -436,10 +436,11 @@ export default function App() {
             <div className="space-y-2 max-w-lg mx-auto">
               <h3 className="text-lg font-semibold text-orange-400">MD NAZISH INAMI</h3>
               <p className="text-slate-300 leading-relaxed">
-                Hi, I'm Nazish! I built <strong>Streak Tracker</strong> to help users stay committed, build daily habits, and maintain long-term momentum.
-              </p>
-              <p className="text-slate-400 text-sm pt-4 border-t border-slate-800">
-                Designed & developed with Next.js, Supabase, and Tailwind CSS.
+           Hi I am Nazish. This website is all about tracking your repeatations because our
+            brain works on that principle.You have to repeat the good habits only then brain beleives that 
+            this is the new norm.To become more masculine and have greater control over your physical and emotional domains 
+            stay connected with this website.
+            Any suggestions will be welcomed Email:nazishwork1@gmail.com
               </p>
             </div>
           </div>
