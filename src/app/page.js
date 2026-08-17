@@ -34,7 +34,7 @@ export default function App() {
     }
   }, []);
 
-  // Sync current user with database periodically/on change
+  // Sync current user with database
   const refreshUserData = async (userId) => {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
@@ -65,7 +65,6 @@ export default function App() {
     }
 
     if (isSignUp) {
-      // Sign Up Logic
       const { data, error } = await supabase
         .from('profiles')
         .insert([{ username: usernameInput.trim(), password: passwordInput.trim() }])
@@ -80,7 +79,6 @@ export default function App() {
         checkDailyPromptStatus(data);
       }
     } else {
-      // Login Logic
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -139,7 +137,7 @@ export default function App() {
     }
   }, [activeTab]);
 
-  // Helper: Badge Calculator
+  // Badge Calculator
   const getBadge = (count = 0) => {
     if (count >= 90) return { title: 'God Mode', color: 'text-purple-400 bg-purple-950/60 border-purple-800' };
     if (count >= 75) return { title: 'Legend', color: 'text-amber-400 bg-amber-950/60 border-amber-800' };
@@ -362,7 +360,6 @@ export default function App() {
         {/* LEADERBOARD TAB */}
         {activeTab === 'leaderboard' && (
           <div className="space-y-6">
-            {/* Top 10 Leaderboard Table */}
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
               <h3 className="font-bold text-lg text-slate-200 flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-amber-400" /> Top 10 Community Leaderboard
@@ -399,7 +396,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Badge Tiers Reference */}
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
               <h3 className="font-bold text-lg text-slate-200 flex items-center gap-2">
                 <Award className="w-5 h-5 text-orange-400" /> Badge Milestones
@@ -428,18 +424,29 @@ export default function App() {
 
         {/* ABOUT US TAB */}
         {activeTab === 'about' && (
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-4">
-            <h2 className="text-2xl font-bold text-white">About the Creator</h2>
-            <p className="text-slate-300 leading-relaxed">
-              Welcome to <strong>Streak Tracker</strong>! Built to help users stay committed, build daily habits, and maintain long-term momentum.
-            </p>
-            <p className="text-slate-400 text-sm">
-              Designed & developed by <strong>MD NAZISH INAMI</strong>. Built with Next.js, Supabase, and Tailwind CSS.
-            </p>
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-6 text-center">
+            <h2 className="text-2xl font-bold text-white">Host</h2>
+            
+            <img 
+              src="/profile.jpg" 
+              alt="MD NAZISH INAMI" 
+              className="w-32 h-32 rounded-full mx-auto border-2 border-orange-500 object-cover shadow-lg"
+            />
+
+            <div className="space-y-2 max-w-lg mx-auto">
+              <h3 className="text-lg font-semibold text-orange-400">MD NAZISH INAMI</h3>
+              <p className="text-slate-300 leading-relaxed">
+                Hi, I'm Nazish! I built <strong>Streak Tracker</strong> to help users stay committed, build daily habits, and maintain long-term momentum.
+              </p>
+              <p className="text-slate-400 text-sm pt-4 border-t border-slate-800">
+                Designed & developed with Next.js, Supabase, and Tailwind CSS.
+              </p>
+            </div>
           </div>
         )}
 
       </main>
+
     </div>
   );
 }
