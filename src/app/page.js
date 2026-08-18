@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
-  Flame, Trophy, LayoutDashboard, Leaderboard, User, 
-  LogOut, ShieldAlert, CheckCircle2, XCircle, Award
+  Flame, Trophy, LayoutDashboard, User, 
+  LogOut, ShieldAlert, CheckCircle2, XCircle, Award, Clock, Mail
 } from 'lucide-react';
 
 export default function App() {
@@ -18,8 +18,9 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Daily Prompt State
+  // Daily Prompt & Timer State
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
+  const [timeLeft, setTimeLeft] = useState('24:00:00');
 
   // Leaderboard State
   const [leaderboard, setLeaderboard] = useState([]);
@@ -34,20 +35,47 @@ export default function App() {
     }
   }, []);
 
-  // Sync current user with database
-  const refreshUserData = async (userId) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (data) {
-      setCurrentUser(data);
-      localStorage.setItem('streak_user', JSON.stringify(data));
-      checkDailyPromptStatus(data);
+  // Timer Tick Logic (Counts down 24 hours from last check-in timestamp)
+  useEffect(() => {
+    if (!currentUser?.last_check_in_time) {
+      setShowDailyPrompt(true);
+      return;
     }
-  };
 
-  // Check if user has checked in today
+    const checkInTime = new Date(currentUser.last_check_in_time).getTime();
+    const nextCheckInTime = checkInTime + 24 * 60 * 60 * 1000; // 24 hours later
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const diff = nextCheckInTime - now;
+
+      if (diff <= 0) {
+        setTimeLeft('00:00:00');
+        setShowDailyPrompt(true);
+      } else {
+        setShowDailyPrompt(false); // Hide banner while timer is active
+        const hours = Math.floor(diff / (1000 * 60 * 60)).toString().padStart(2, '0');
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000).toString().padStart(2, '0');
+        setTimeLeft(`${hours}:${minutes}:${seconds}`);
+      }
+    };
+
+    updateTimer(); // Initial call
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  // Check daily check-in status
   const checkDailyPromptStatus = (user) => {
-    const today = new Date().toISOString().split('T')[0];
-    if (user.last_check_in !== today) {
+    if (!user.last_check_in_time) {
+      setShowDailyPrompt(true);
+      return;
+    }
+    const checkInTime = new Date(user.last_check_in_time).getTime();
+    const nextCheckInTime = checkInTime + 24 * 60 * 60 * 1000;
+    if (new Date().getTime() >= nextCheckInTime) {
       setShowDailyPrompt(true);
     } else {
       setShowDailyPrompt(false);
@@ -103,21 +131,33 @@ export default function App() {
 
   // Daily Check-in Handlers
   const handleDailyResponse = async (keptStreak) => {
-    const today = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+    const today = nowIso.split('T')[0];
     const newStreak = keptStreak ? (currentUser.streak_count || 0) + 1 : 0;
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ streak_count: newStreak, last_check_in: today })
-      .eq('id', currentUser.id)
-      .select()
-      .single();
+    // Immediately hide banner locally
+    setShowDailyPrompt(false);
 
-    if (!error && data) {
-      setCurrentUser(data);
-      localStorage.setItem('streak_user', JSON.stringify(data));
-      setShowDailyPrompt(false);
-    }
+    const updatedUser = {
+      ...currentUser,
+      streak_count: newStreak,
+      last_check_in: today,
+      last_check_in_time: nowIso
+    };
+
+    // Update state immediately
+    setCurrentUser(updatedUser);
+    localStorage.setItem('streak_user', JSON.stringify(updatedUser));
+
+    // Save to Database
+    await supabase
+      .from('profiles')
+      .update({ 
+        streak_count: newStreak, 
+        last_check_in: today,
+        last_check_in_time: nowIso 
+      })
+      .eq('id', currentUser.id);
   };
 
   // Fetch Leaderboard
@@ -219,6 +259,10 @@ export default function App() {
   }
 
   const badge = getBadge(currentUser.streak_count);
+  const currentStreak = Math.min(currentUser.streak_count || 0, 90);
+  
+  // Calculate Needle Angle: 0 days = -90 deg (left), 90 days = 90 deg (right)
+  const needleAngle = -90 + (currentStreak / 90) * 180;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -326,33 +370,69 @@ export default function App() {
               </div>
             </div>
 
-            {/* 90-Day Visual Grid */}
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="font-bold text-lg text-slate-200">90-Day Progress Grid</h3>
-                <span className="text-sm text-slate-400">
-                  {Math.min(currentUser.streak_count || 0, 90)} / 90 Boxes Active
-                </span>
+            {/* 90-DAY METER & TIMER SECTION */}
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col items-center space-y-6">
+              <h3 className="font-bold text-lg text-slate-200 w-full text-left">90-Day Streak Meter</h3>
+
+              {/* Gauge Meter Display */}
+              <div className="relative w-full max-w-md h-56 flex flex-col items-center justify-end overflow-hidden">
+                <svg viewBox="0 0 200 120" className="w-full h-full">
+                  {/* 90 Division Ticks (Green when reached, Gray when pending) */}
+                  {Array.from({ length: 91 }).map((_, i) => {
+                    const angle = -180 + (i * 180) / 90;
+                    const rad = (angle * Math.PI) / 180;
+                    const isMajor = i % 10 === 0;
+                    const r1 = 88;
+                    const r2 = isMajor ? 98 : 94;
+                    const x1 = 100 + r1 * Math.cos(rad);
+                    const y1 = 100 + r2 * Math.sin(rad);
+                    const x2 = 100 + (r1 - (isMajor ? 10 : 5)) * Math.cos(rad);
+                    const y2 = 100 + (r2 - (isMajor ? 10 : 5)) * Math.sin(rad);
+
+                    return (
+                      <line
+                        key={i}
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke={i <= currentStreak ? '#10b981' : '#334155'}
+                        strokeWidth={isMajor ? '2' : '1'}
+                        className="transition-colors duration-500"
+                      />
+                    );
+                  })}
+
+                  {/* Meter Center Pivot */}
+                  <circle cx="100" cy="100" r="7" fill="#f97316" />
+                  <circle cx="100" cy="100" r="3" fill="#020617" />
+
+                  {/* Needle */}
+                  <g style={{ transform: `rotate(${needleAngle}deg)`, transformOrigin: '100px 100px', transition: 'transform 1s ease-out' }}>
+                    <line x1="100" y1="100" x2="100" y2="22" stroke="#f97316" strokeWidth="3" strokeLinecap="round" />
+                  </g>
+                </svg>
+
+                {/* Day Counter under needle pivot */}
+                <div className="absolute bottom-2 text-center">
+                  <span className="text-3xl font-black text-white">{currentStreak}</span>
+                  <span className="text-slate-400 text-xs block">/ 90 Days</span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-10 sm:grid-cols-15 gap-2 pt-2">
-                {Array.from({ length: 90 }, (_, index) => {
-                  const isActive = index < (currentUser.streak_count || 0);
-                  return (
-                    <div
-                      key={index}
-                      title={`Day ${index + 1}`}
-                      className={`aspect-square rounded-md text-[10px] font-bold flex items-center justify-center transition-all ${
-                        isActive
-                          ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/50 scale-105'
-                          : 'bg-slate-950 border border-slate-800 text-slate-600'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-                  );
-                })}
+              {/* 24-HOUR COUNTDOWN TIMER BELOW METER */}
+              <div className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-2xl p-4 text-center space-y-1">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                  <Clock className="w-4 h-4 text-orange-500" /> Next Check-In Timer
+                </span>
+                <div className="text-3xl font-mono font-bold text-orange-400 tracking-wider">
+                  {timeLeft}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {showDailyPrompt ? 'Check-in is active now!' : 'Timer resets after marking today\'s streak'}
+                </p>
               </div>
+
             </div>
           </div>
         )}
@@ -425,7 +505,7 @@ export default function App() {
         {/* ABOUT US TAB */}
         {activeTab === 'about' && (
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-6 text-center">
-            <h2 className="text-2xl font-bold text-white">Owner</h2>
+            <h2 className="text-2xl font-bold text-white">About the Creator</h2>
             
             <img 
               src="/profile.jpg" 
@@ -433,15 +513,23 @@ export default function App() {
               className="w-32 h-32 rounded-full mx-auto border-2 border-orange-500 object-cover shadow-lg"
             />
 
-            <div className="space-y-2 max-w-lg mx-auto">
+            <div className="space-y-4 max-w-lg mx-auto">
               <h3 className="text-lg font-semibold text-orange-400">MD NAZISH INAMI</h3>
+              
               <p className="text-slate-300 leading-relaxed">
-           Hi I am Nazish. This website is all about tracking your repeatations because our
-            brain works on that principle.You have to repeat the good habits only then brain beleives that 
-            this is the new norm.To become more masculine and have greater control over your physical and emotional domains 
-            stay connected with this website.
-            Any suggestions will be welcomed Email:nazishwork1@gmail.com
+                Hi, I am Nazish. This website is all about tracking your repetitions because our brain works on that principle. You have to repeat the good habits—only then the brain believes that this is the new norm.
               </p>
+
+              <p className="text-slate-300 leading-relaxed">
+                To become more masculine and have greater control over your physical and emotional domains, stay connected with this website.
+              </p>
+
+              <div className="pt-4 border-t border-slate-800 text-slate-400 text-sm space-y-1">
+                <p>Any suggestions will be welcomed!</p>
+                <p className="text-orange-400 font-medium flex items-center justify-center gap-1.5">
+                  <Mail className="w-4 h-4" /> nazishwork1@gmail.com
+                </p>
+              </div>
             </div>
           </div>
         )}
